@@ -1,0 +1,36 @@
+services:
+  app:
+    image: ${DOCKERHUB_USERNAME:-m4x1m34r}/medflow-erp:${IMAGE_TAG:-0.6.3}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://medflow:${POSTGRES_PASSWORD}@db:5432/medflow
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      ACCESS_TOKEN_MINUTES: ${ACCESS_TOKEN_MINUTES:-480}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+    ports:
+      - "${APP_PORT:-8080}:80"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: medflow
+      POSTGRES_USER: medflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - medflow_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medflow -d medflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  medflow_db:
