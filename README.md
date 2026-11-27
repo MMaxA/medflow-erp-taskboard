@@ -13,19 +13,16 @@
 - Поиск задач по названию, коду, проекту и исполнителю.
 - История действий по проектам.
 - Базовый endpoint уведомлений и отметки прочтения.
-- Демонстрационные пользователи и данные создаются автоматически.
+- Демо-пользователи и данные создаются только при явном `DEMO_SEED=true` в локальном окружении.
 
 ## Запуск (рекомендуется Docker)
-1. Установите Docker Desktop и запустите его.
-2. В корне проекта:
-   `docker compose up --build`
-3. API будет доступен на http://localhost:8000, Swagger — http://localhost:8000/docs.
-4. В отдельном терминале:
-   `cd frontend && npm install && npm run dev`
-5. Откройте адрес Vite, обычно http://localhost:5173.
+1. Установите Docker Desktop и создайте `.env` из `.env.example`.
+2. Замените `POSTGRES_PASSWORD` случайным паролем только из латинских букв и цифр (он вставляется в `DATABASE_URL`), а `SECRET_KEY` — случайным секретом длиной от 32 символов.
+3. Для изолированной демонстрации можно установить `DEMO_SEED=true` (только с `APP_ENV=development`). Демо-пароль для перечисленных ниже аккаунтов: `Demo12345!`.
+4. Запустите `docker compose up --build` и откройте http://localhost:8080. Health endpoint: http://localhost:8080/api/health. Swagger работает только при `APP_ENV=development`.
 
 ## Демо-учётные записи
-Все учётные записи используют пароль `Demo12345!`:
+Для локальной демонстрации задайте `DEMO_SEED=true`; эти тестовые записи нельзя использовать в production:
 - director@medflow.demo
 - manager@medflow.demo
 - accountant@medflow.demo
@@ -37,7 +34,7 @@
 - Директор: просмотр пользователей, все данные, управление проектами и задачами.
 - Администратор: управление пользователями, все операции MVP.
 - Проектный менеджер: создание/изменение проектов и задач.
-- Создавать задачу может любой авторизованный пользователь. Редактировать задачу может её исполнитель, офис-менеджер, директор, проектный менеджер или администратор.
+- Создать задачу может любой авторизованный пользователь, назначив её на себя. Редактировать задачу может её исполнитель, офис-менеджер, директор, проектный менеджер или администратор.
 - Бухгалтер, юрист, офис-менеджер: авторизованный просмотр; изменение статуса задачи разрешено исполнителю задачи, офис-менеджеру, директору, менеджеру или администратору.
 - Проверка ролей выполняется на backend, не только в UI.
 
@@ -57,13 +54,13 @@ Frontend:
 - История: логируются создание и редактирование проекта, а также смена статуса связанной задачи; полноценный аудит всех действий будет расширяться.
 - Карточка проекта: просмотр и редактирование полей, изменение цены контракта, удаление с подтверждением. При удалении также удаляются связанные задачи и история проекта.
 - Пользовательский интерфейс списка пользователей пока демонстрационный; API просмотра и создания пользователей доступно ролям admin/director и admin соответственно.
-- Нет refresh-токенов, восстановления пароля, rate limiting, MFA, миграций Alembic и production hardening.
-- Демо-пароли и ключ в docker-compose предназначены только для локального прототипа. Измените их перед публикацией.
+- Нет refresh-токенов, восстановления пароля и MFA.
+- Демо-пароль задан только в исходном коде локального demo seed; режим demo отключён по умолчанию и запрещён в production.
 - Данные вымышленные; не используйте для реальных закупок/договоров.
 
 ## Foundation 0.5 — Trading & Finance API (initial backend slice)
 
-This iteration adds persistent PostgreSQL tables for counterparties and payment records. Existing `projects`, `tasks`, users, activity and notifications are retained. SQLAlchemy `create_all()` creates only the new tables on startup; it does not drop or recreate existing data.
+This iteration adds persistent PostgreSQL tables for counterparties and payment records. Existing `projects`, `tasks`, users, activity and notifications are retained. Schema changes are now applied through Alembic before the API starts.
 
 ### Counterparties
 - `GET /api/counterparties` — list; optional `?kind=customer` or `?kind=supplier` (also includes `both`).
@@ -124,14 +121,14 @@ The CRM entry is available in the left navigation after login. Add customers and
 - Contacts API supports listing and creation; contact editing/deletion UI is not included yet.
 - Opportunity equipment items can be added and removed through the API; the UI currently supports adding from the catalogue.
 - No currency conversion, tax accounting, 1C exchange, tender monitoring or FAS case workflow is included.
-- `Base.metadata.create_all` creates newly added tables in an existing database; it does not manage schema migrations. Use Alembic before production deployment.
+- Older versions used `Base.metadata.create_all` at application startup; use the checked in Alembic migrations for all schema updates.
 - Full frontend dependency installation/build and Docker integration must be verified in the deployment environment.
 
 ## Foundation 0.6.1 — CRM opportunity view and per-offer economics
 - Opportunity details now open in a full-screen modal with internal scrolling.
 - CRM economics are displayed separately for every supplier offer: equipment net cost after discount, additional costs, total cost, assumed selling price, gross profit and gross margin.
 - New additional cost lines can be assigned to a specific offer or marked as general opportunity costs.
-- Existing cost lines are preserved as general opportunity costs. An additive startup migration adds the nullable `offer_id` column to existing databases; no database volume reset is required.
+- Existing cost lines are preserved as general opportunity costs. The Alembic upgrade adds the nullable `offer_id` column to older databases; no database volume reset is required.
 - Selling price remains a common comparison assumption for all offers. Currency amounts are not converted; compare offers in the same currency.
 
 ## Foundation 0.6.2 — CRM usability improvements
@@ -148,10 +145,10 @@ The CRM entry is available in the left navigation after login. Add customers and
 ### Локальный запуск
 
 1. Создайте `.env` из шаблона: `Copy-Item .env.example .env` (PowerShell) или `cp .env.example .env`.
-2. Задайте уникальные длинные значения `POSTGRES_PASSWORD` и `SECRET_KEY`. Для `POSTGRES_PASSWORD` в текущем формате `DATABASE_URL` используйте латинские буквы и цифры.
+2. Задайте уникальный случайный `POSTGRES_PASSWORD` из латинских букв и цифр (он вставляется в `DATABASE_URL`), а `SECRET_KEY` длиной от 32 символов. Первого администратора можно создать через `BOOTSTRAP_ADMIN_EMAIL` и `BOOTSTRAP_ADMIN_PASSWORD` (минимум 14 символов). Не включайте `DEMO_SEED`.
 3. Проверьте конфигурацию: `docker compose config`.
 4. Соберите и запустите: `docker compose up -d --build`.
-5. Откройте `http://localhost:8080`; API health: `http://localhost:8080/api/health`; Swagger: `http://localhost:8080/docs`.
+5. Откройте `http://localhost:8080`; API health: `http://localhost:8080/api/health`. Swagger доступен только при `APP_ENV=development`.
 
 ### Публикация единого образа в Docker Hub
 
@@ -175,7 +172,9 @@ docker compose up -d
 docker compose ps
 ```
 
-Перед первым production-запуском замените секреты. В проекте предусмотрены демонстрационные учётные записи с общим паролем `Demo12345!`; смените их пароли сразу после первого входа и не используйте демонстрационные реквизиты в открытом доступе.
+Compose запускает отдельный одноразовый `migrate` сервис и ждёт его успешного завершения до запуска API. Первая миграция сохраняет существующие таблицы, добавляет привязки задач и проектов к пользователям, сохраняет старые связи по уникальным именам и переводит сумму проекта на Numeric.
+
+На production размещайте сервис за TLS reverse proxy; не публикуйте незашифрованный порт в интернет. Настройте регулярные резервные копии, например `sh deploy/backup-postgres.sh /srv/backups/medflow`, и регулярно проверяйте восстановление на отдельной БД. Скрипт удаляет резервные копии старше 14 дней (`RETENTION_DAYS` меняет срок хранения).
 
 ### Обновление версии
 

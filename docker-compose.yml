@@ -1,20 +1,53 @@
 services:
+  migrate:
+    image: ${DOCKERHUB_USERNAME:-m4x1m34r}/medflow-erp:${IMAGE_TAG:-0.6.3}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["alembic", "-c", "/app/alembic.ini", "upgrade", "head"]
+    restart: "no"
+    environment: &app_environment
+      DATABASE_URL: postgresql+psycopg://medflow:${POSTGRES_PASSWORD}@db:5432/medflow
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      ACCESS_TOKEN_MINUTES: ${ACCESS_TOKEN_MINUTES:-60}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      APP_ENV: ${APP_ENV:-production}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
   app:
     image: ${DOCKERHUB_USERNAME:-m4x1m34r}/medflow-erp:${IMAGE_TAG:-0.6.3}
     build:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql+psycopg://medflow:${POSTGRES_PASSWORD}@db:5432/medflow
-      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
-      ACCESS_TOKEN_MINUTES: ${ACCESS_TOKEN_MINUTES:-480}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+    environment: *app_environment
     ports:
       - "${APP_PORT:-8080}:80"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - SETUID
+      - SETGID
+      - CHOWN
+    read_only: true
+    tmpfs:
+      - /run
+      - /var/cache/nginx
+      - /var/log/nginx
+      - /var/lib/nginx
+      - /tmp
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   db:
     image: postgres:16-alpine

@@ -13,15 +13,15 @@ const columns=[
  {status:'Выполнена',title:'Завершено',color:'#16a34a',bg:'#f0fdf4'},
 ];
 const priorities=[{value:'Низкий',color:'default' as const},{value:'Средний',color:'info' as const},{value:'Высокий',color:'warning' as const},{value:'Критический',color:'error' as const}];
-const blank={title:'',project_code:'',assignee:'',due_date:'',status:'Новая',priority:'Средний'};
+const blank={title:'',project_code:'',assignee:'',assignee_id:null as number|null,due_date:'',status:'Новая',priority:'Средний'};
 type Props={tasks:Task[];projects:Project[];currentUser:User;onChanged:()=>Promise<void>};
 export default function TasksBoard({tasks,projects,currentUser,onChanged}:Props){
  const [users,setUsers]=useState<User[]>([]),[dialog,setDialog]=useState(false),[editing,setEditing]=useState<Task|null>(null),[form,setForm]=useState(blank),[saving,setSaving]=useState(false),[error,setError]=useState(''),[search,setSearch]=useState(''),[dragId,setDragId]=useState<number|null>(null);
  useEffect(()=>{api<User[]>('/api/task-assignees').then(setUsers).catch(e=>setError(e.message));},[]);
  const filtered=useMemo(()=>tasks.filter(t=>[t.title,t.code,t.assignee,t.project_code].join(' ').toLowerCase().includes(search.toLowerCase())),[tasks,search]);
- function openNew(){setEditing(null);setForm({...blank,assignee:currentUser.full_name});setError('');setDialog(true)}
- function openEdit(t:Task){setEditing(t);setForm({title:t.title,project_code:t.project_code||'',assignee:t.assignee||'',due_date:t.due_date||'',status:t.status,priority:t.priority});setError('');setDialog(true)}
- async function save(){setSaving(true);setError('');try{if(!form.title.trim())throw new Error('Введите название задачи');const payload={...form,title:form.title.trim(),code:editing?.code||`TS-${Date.now().toString().slice(-7)}`};if(editing)await api(`/api/tasks/${editing.id}`,{method:'PATCH',body:JSON.stringify(payload)});else await api('/api/tasks',{method:'POST',body:JSON.stringify(payload)});setDialog(false);await onChanged()}catch(e:any){setError(e.message)}finally{setSaving(false)}}
+ function openNew(){setEditing(null);setForm({...blank,assignee:currentUser.full_name,assignee_id:currentUser.id});setError('');setDialog(true)}
+ function openEdit(t:Task){setEditing(t);setForm({title:t.title,project_code:t.project_code||'',assignee:t.assignee||'',assignee_id:t.assignee_id,due_date:t.due_date||'',status:t.status,priority:t.priority});setError('');setDialog(true)}
+ async function save(){setSaving(true);setError('');try{if(!form.title.trim())throw new Error('Введите название задачи');const payload={...form,assignee:users.find(u=>u.id===form.assignee_id)?.full_name||'',title:form.title.trim(),code:editing?.code||`TS-${Date.now().toString().slice(-7)}`};if(editing)await api(`/api/tasks/${editing.id}`,{method:'PATCH',body:JSON.stringify(payload)});else await api('/api/tasks',{method:'POST',body:JSON.stringify(payload)});setDialog(false);await onChanged()}catch(e:any){setError(e.message)}finally{setSaving(false)}}
  async function removeTask(){if(!editing)return;if(!confirm(`Удалить задачу «${editing.title}»?`))return;setSaving(true);try{await api(`/api/tasks/${editing.id}`,{method:'DELETE'});setDialog(false);await onChanged()}catch(e:any){setError(e.message)}finally{setSaving(false)}}
  async function move(t:Task,status:string){if(t.status===status)return;try{await api(`/api/tasks/${t.id}/status`,{method:'PATCH',body:JSON.stringify({status})});await onChanged()}catch(e:any){setError(e.message)}}
  return <Box>
@@ -48,7 +48,7 @@ export default function TasksBoard({tasks,projects,currentUser,onChanged}:Props)
   <Dialog open={dialog} onClose={()=>!saving&&setDialog(false)} fullWidth maxWidth="sm"><DialogTitle>{editing?'Редактировать задачу':'Создать задачу'}</DialogTitle><DialogContent>
    <TextField fullWidth required margin="normal" label="Название задачи" value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/>
    <TextField fullWidth select margin="normal" label="Проект / контракт" value={form.project_code} onChange={e=>setForm({...form,project_code:e.target.value})}><MenuItem value="">Без привязки к проекту</MenuItem>{projects.map(p=><MenuItem key={p.code} value={p.code}>{p.code} — {p.name}</MenuItem>)}</TextField>
-   <TextField fullWidth select margin="normal" label="Исполнитель" value={form.assignee} onChange={e=>setForm({...form,assignee:e.target.value})}><MenuItem value="">Не назначен</MenuItem>{users.map(u=><MenuItem key={u.id} value={u.full_name}>{u.full_name} · {u.role}</MenuItem>)}</TextField>
+   <TextField fullWidth select margin="normal" label="Исполнитель" value={form.assignee_id??''} onChange={e=>setForm({...form,assignee_id:Number(e.target.value)||null})}><MenuItem value="">Не назначен</MenuItem>{users.map(u=><MenuItem key={u.id} value={u.id}>{u.full_name} · {u.email} · {u.role}</MenuItem>)}</TextField>
    <TextField fullWidth select margin="normal" label="Приоритет" value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})}>{priorities.map(p=><MenuItem key={p.value} value={p.value}>{p.value}</MenuItem>)}</TextField>
    <TextField fullWidth type="date" margin="normal" label="Срок выполнения" InputLabelProps={{shrink:true}} value={form.due_date} onChange={e=>setForm({...form,due_date:e.target.value})}/>
    <TextField fullWidth select margin="normal" label="Статус" value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>{columns.map(c=><MenuItem key={c.status} value={c.status}>{c.title}</MenuItem>)}</TextField>

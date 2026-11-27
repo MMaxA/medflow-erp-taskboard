@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, Float, DateTime, Text, Boolean, ForeignKey
+from decimal import Decimal
+from sqlalchemy import String, Integer, Float, DateTime, Text, Boolean, ForeignKey, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 def now(): return datetime.now(timezone.utc)
@@ -21,7 +22,8 @@ class Project(Base):
     product:Mapped[str]=mapped_column(String(250),default="")
     stage:Mapped[str]=mapped_column(String(80),default="КП и подбор")
     owner:Mapped[str]=mapped_column(String(150),default="")
-    amount:Mapped[float]=mapped_column(Float,default=0)
+    owner_id:Mapped[int | None]=mapped_column(ForeignKey("users.id"),nullable=True,index=True)
+    amount:Mapped[Decimal]=mapped_column(Numeric(14,2),default=Decimal("0.00"))
     probability:Mapped[int]=mapped_column(Integer,default=0)
     description:Mapped[str]=mapped_column(Text,default="")
     created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
@@ -33,6 +35,7 @@ class Task(Base):
     title:Mapped[str]=mapped_column(String(250))
     project_code:Mapped[str]=mapped_column(String(30),default="")
     assignee:Mapped[str]=mapped_column(String(150),default="")
+    assignee_id:Mapped[int | None]=mapped_column(ForeignKey("users.id"),nullable=True,index=True)
     due_date:Mapped[str]=mapped_column(String(20),default="")
     status:Mapped[str]=mapped_column(String(50),default="Новая")
     priority:Mapped[str]=mapped_column(String(30),default="Средний")
@@ -77,7 +80,7 @@ class Payment(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     project_code: Mapped[str] = mapped_column(String(30), index=True)
     direction: Mapped[str] = mapped_column(String(20))  # incoming / outgoing
-    amount: Mapped[float] = mapped_column(__import__('sqlalchemy').Numeric(14, 2))
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     currency: Mapped[str] = mapped_column(String(3), default="EUR")
     planned_date: Mapped[str] = mapped_column(String(10), default="")
     paid_date: Mapped[str] = mapped_column(String(10), default="")
@@ -124,7 +127,7 @@ class Opportunity(Base):
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     stage: Mapped[str] = mapped_column(String(80), default="Новая потребность")
     description: Mapped[str] = mapped_column(Text, default="")
-    budget: Mapped[float] = mapped_column(__import__('sqlalchemy').Numeric(14,2), default=0)
+    budget: Mapped[Decimal] = mapped_column(Numeric(14,2), default=Decimal("0.00"))
     currency: Mapped[str] = mapped_column(String(3), default="RUB")
     funding_status: Mapped[str] = mapped_column(String(80), default="Не уточнён")
     procurement_method: Mapped[str] = mapped_column(String(120), default="Не определена")
@@ -153,7 +156,7 @@ class CommercialOffer(Base):
     equipment_id: Mapped[int | None] = mapped_column(ForeignKey("equipment.id"), nullable=True)
     description: Mapped[str] = mapped_column(Text, default="")
     quantity: Mapped[int] = mapped_column(Integer, default=1)
-    unit_price: Mapped[float] = mapped_column(__import__('sqlalchemy').Numeric(14,2))
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(14,2))
     currency: Mapped[str] = mapped_column(String(3), default="RUB")
     discount_percent: Mapped[float] = mapped_column(Float, default=0)
     payment_terms: Mapped[str] = mapped_column(Text, default="")
@@ -170,6 +173,6 @@ class CostLine(Base):
     offer_id: Mapped[int | None] = mapped_column(ForeignKey("commercial_offers.id", ondelete="CASCADE"), nullable=True, index=True)
     category: Mapped[str] = mapped_column(String(80))
     description: Mapped[str] = mapped_column(String(250), default="")
-    amount: Mapped[float] = mapped_column(__import__('sqlalchemy').Numeric(14,2))
+    amount: Mapped[Decimal] = mapped_column(Numeric(14,2))
     currency: Mapped[str] = mapped_column(String(3), default="RUB")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
